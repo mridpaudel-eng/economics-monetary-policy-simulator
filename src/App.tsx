@@ -44,16 +44,6 @@ function makeAdPath(equilibriumX: number, equilibriumY: number, slope = 0.34): s
   return `M ${DIAGRAM_BOUNDS.left} ${at(DIAGRAM_BOUNDS.left)} L ${DIAGRAM_BOUNDS.right} ${at(DIAGRAM_BOUNDS.right)}`
 }
 
-function getAdLabelPosition(equilibriumX: number, equilibriumY: number): { x: number; y: number } {
-  const slope = 0.34
-  const labelLineY = Math.min(equilibriumY + slope * (DIAGRAM_BOUNDS.right - equilibriumX), DIAGRAM_BOUNDS.bottom - 20)
-  const lineX = equilibriumX + (labelLineY - equilibriumY) / slope
-  return {
-    x: Math.max(DIAGRAM_BOUNDS.left + 8, Math.min(DIAGRAM_BOUNDS.right - 28, lineX)),
-    y: labelLineY - 12,
-  }
-}
-
 function outputGapDescription(gdp: number, potentialGdp: number, outputGap: number): string {
   if (Math.abs(outputGap) <= OUTPUT_GAP_TOLERANCE) {
     return `Zero output gap · GDP ${formatValue(gdp)} is at potential output ${formatValue(potentialGdp)}.`
@@ -244,7 +234,45 @@ function SavedScenarioComparison({ saved, currentInputs, currentQuarter, onClear
   </section>
 }
 
+type PrisonersDilemmaChoice = 'silent' | 'confess'
+
+function PrisonersDilemma() {
+  const [playerAChoice, setPlayerAChoice] = useState<PrisonersDilemmaChoice | null>(null)
+  const [playerBChoice, setPlayerBChoice] = useState<PrisonersDilemmaChoice | null>(null)
+  const choiceLabel = (choice: PrisonersDilemmaChoice) => choice === 'silent' ? 'remain silent' : 'confess'
+  const sentence = (years: number) => `${years} ${years === 1 ? 'year' : 'years'}`
+  const payoff = (a: PrisonersDilemmaChoice, b: PrisonersDilemmaChoice): [number, number] => {
+    if (a === 'silent' && b === 'silent') return [1, 1]
+    if (a === 'silent' && b === 'confess') return [5, 0]
+    if (a === 'confess' && b === 'silent') return [0, 5]
+    return [3, 3]
+  }
+
+  return <div className="prisoners-dilemma-content">
+    <section className="pd-panel pd-scenario" aria-labelledby="pd-scenario-title"><p className="eyebrow">The Scenario</p><h2 id="pd-scenario-title">Two suspects. One decision each.</h2><p>You and another suspect have been arrested for the same crime. You are questioned separately and cannot communicate with each other. Each of you must decide whether to remain silent or confess.</p><p>Your prison sentence depends on both your decision and the other player's decision. Try to choose the strategy that gives you the best outcome.</p></section>
+
+    <section className="pd-panel" aria-labelledby="pd-choices-title">
+      <div className="pd-section-heading"><div><p className="eyebrow">Make your choices</p><h2 id="pd-choices-title">Choose an action for each player</h2></div><button className="secondary-button pd-reset-button" type="button" onClick={() => { setPlayerAChoice(null); setPlayerBChoice(null) }}>Reset choices</button></div>
+      <div className="pd-player-choices">
+        <fieldset className="pd-player"><legend>Player A</legend><button type="button" className={playerAChoice === 'silent' ? 'selected' : ''} aria-pressed={playerAChoice === 'silent'} onClick={() => setPlayerAChoice('silent')}>Remain Silent <span>Cooperate</span></button><button type="button" className={playerAChoice === 'confess' ? 'selected' : ''} aria-pressed={playerAChoice === 'confess'} onClick={() => setPlayerAChoice('confess')}>Confess <span>Defect</span></button></fieldset>
+        <fieldset className="pd-player"><legend>Player B</legend><button type="button" className={playerBChoice === 'silent' ? 'selected' : ''} aria-pressed={playerBChoice === 'silent'} onClick={() => setPlayerBChoice('silent')}>Remain Silent <span>Cooperate</span></button><button type="button" className={playerBChoice === 'confess' ? 'selected' : ''} aria-pressed={playerBChoice === 'confess'} onClick={() => setPlayerBChoice('confess')}>Confess <span>Defect</span></button></fieldset>
+      </div>
+    </section>
+
+    <section className="pd-panel" aria-labelledby="pd-matrix-title">
+      <div className="pd-section-heading"><div><p className="eyebrow">Prison sentences</p><h2 id="pd-matrix-title">Player A and Player B outcomes</h2></div><p>Lower sentences are better · Player A first, Player B second</p></div>
+      <div className="pd-matrix-wrap"><table className="pd-matrix"><thead><tr><th scope="col">Player A \ Player B</th><th scope="col">Remain Silent</th><th scope="col">Confess</th></tr></thead><tbody>{(['silent', 'confess'] as const).map((aChoice) => <tr key={aChoice}><th scope="row">{aChoice === 'silent' ? 'Remain Silent' : 'Confess'}</th>{(['silent', 'confess'] as const).map((bChoice) => { const [aPayoff, bPayoff] = payoff(aChoice, bChoice); const selected = playerAChoice === aChoice && playerBChoice === bChoice; return <td key={bChoice} className={selected ? 'selected' : ''}><strong>{sentence(aPayoff)}, {sentence(bPayoff)}</strong>{selected && <span className="pd-selected-label">Selected</span>}</td> })}</tr>)}</tbody></table></div>
+    </section>
+
+    {playerAChoice && playerBChoice && (() => { const [aSentence, bSentence] = payoff(playerAChoice, playerBChoice); const bothConfess = playerAChoice === 'confess' && playerBChoice === 'confess'; return <section className="pd-outcome" aria-live="polite" aria-labelledby="pd-outcome-title"><p className="eyebrow">Result · lower is better</p><h2 id="pd-outcome-title">Outcome: {playerAChoice === playerBChoice ? `Both players ${choiceLabel(playerAChoice)}` : `Player A ${choiceLabel(playerAChoice)}; Player B ${choiceLabel(playerBChoice)}`}</h2><div className="pd-payoffs"><p>Player A: <strong>{sentence(aSentence)}</strong></p><p>Player B: <strong>{sentence(bSentence)}</strong></p></div>{bothConfess ? <p>This is the <strong>Nash equilibrium</strong>: neither player can reduce their own prison sentence by changing strategy alone. Both players would receive a lower sentence at <strong>Remain Silent / Remain Silent</strong>: 1 year each.</p> : <p>The Nash equilibrium is <strong>Confess / Confess = 3 years each</strong>. Neither player can reduce their own sentence by changing strategy alone. <strong>Remain Silent / Remain Silent</strong> gives both a lower sentence: 1 year each.</p>}</section> })()}
+
+    <section className="pd-panel pd-theory" aria-labelledby="pd-theory-title"><p className="eyebrow">Game theory</p><h2 id="pd-theory-title">Dominant strategy: Confess (Defect)</h2><p>Remain Silent is the formal strategy called <strong>Cooperate</strong>; Confess is called <strong>Defect</strong>. A shorter sentence is a better result.</p><h3>For Player A</h3><ul><li>If B remains silent: Confess gives A <strong>0 years</strong> instead of <strong>1 year</strong>.</li><li>If B confesses: Confess gives A <strong>3 years</strong> instead of <strong>5 years</strong>.</li></ul><h3>For Player B</h3><ul><li>If A remains silent: Confess gives B <strong>0 years</strong> instead of <strong>1 year</strong>.</li><li>If A confesses: Confess gives B <strong>3 years</strong> instead of <strong>5 years</strong>.</li></ul><p><strong>Nash equilibrium: Confess / Confess = 3 years each.</strong> Neither player can reduce their own sentence by changing strategy alone.</p><p><strong>Collectively:</strong> Remain Silent / Remain Silent gives both players a lower sentence of 1 year each.</p></section>
+  </div>
+}
+
 function App() {
+  const [activeLab, setActiveLab] = useState<'monetary' | 'game-theory'>('monetary')
+  const [gameTheoryView, setGameTheoryView] = useState<'landing' | 'prisoners-dilemma'>('landing')
   const [bankRate, setBankRate] = useState(3.75)
   const [exchangeRateAdjustment, setExchangeRateAdjustment] = useState(0)
   const [fiscalPolicyExpansion, setFiscalPolicyExpansion] = useState(0)
@@ -340,7 +368,8 @@ function App() {
   }
 
   return <main className="app-shell">
-    <header className="topbar"><a className="brand" href="#dashboard" aria-label="Monetary Policy Simulator home"><span className="brand-mark">M</span><span>MACRO<span>LAB</span></span></a><div className="topbar-meta"><span className="status-dot" /> Model connected <span className="divider" /> Academic edition</div></header>
+    <header className="topbar"><a className="brand" href="#dashboard" aria-label="Economics Simulator home" onClick={(event) => { event.preventDefault(); setActiveLab('monetary') }}><span className="brand-mark">E</span><span className="brand-copy"><span>Economics <span>Simulator</span></span><small>Interactive economics simulations</small></span></a><nav className="lab-navigation" aria-label="Economics Simulation Lab"><button type="button" className={activeLab === 'monetary' ? 'active' : ''} aria-current={activeLab === 'monetary' ? 'page' : undefined} onClick={() => setActiveLab('monetary')}>Monetary Policy Simulator</button><button type="button" className={activeLab === 'game-theory' ? 'active' : ''} aria-current={activeLab === 'game-theory' ? 'page' : undefined} onClick={() => { setActiveLab('game-theory'); setGameTheoryView('landing') }}>Game Theory Lab</button></nav><div className="topbar-meta"><span className="status-dot" /> Model connected <span className="divider" /> Academic edition</div></header>
+    <div hidden={activeLab !== 'monetary'}>
     <section className="page-heading" id="dashboard"><div><p className="eyebrow">Policy laboratory</p><h1>Monetary Policy Simulator</h1><p className="subtitle">Explore how changes to monetary and fiscal policy could shape the wider economy.</p></div><div className="period-card"><span>Simulation horizon</span><strong>Q1 — Q{appliedInputs.horizon}</strong></div></section>
     <section className="dashboard-layout" aria-label="Monetary policy dashboard">
       <aside className="policy-panel"><div className="panel-title"><div><p className="eyebrow">Inputs</p><h2>Policy settings</h2></div><span className="panel-icon" aria-hidden="true">⌘</span></div><p className="panel-intro">Adjust the model inputs to generate a user scenario. Results use the locked economic model.</p><div className="controls">
@@ -370,6 +399,13 @@ function App() {
     <KeynesianAggregateSupplyDiagram baselineGdp={baselineFinalQuarter.gdp} gdp={finalQuarter.gdp} potentialGdp={potentialGdp} outputGap={finalQuarter.outputGap} quarter={finalQuarter.quarter} />
     <ScenarioComparison finalQuarter={finalQuarter} />
     <SavedScenarioComparison saved={savedScenario} currentInputs={appliedInputs} currentQuarter={finalQuarter} onClear={() => setSavedScenario(null)} />
+    </div>
+    {activeLab === 'game-theory' && <>
+      {gameTheoryView === 'landing' ? <section className="game-theory-page" aria-labelledby="game-theory-title">
+        <div className="game-theory-heading"><p className="eyebrow">Economics Simulation Lab · Lab 2</p><h1 id="game-theory-title">Game Theory Lab</h1><p className="subtitle">Explore strategic decision-making between economic agents and see how incentives shape outcomes.</p></div>
+        <article className="game-card"><div className="game-card-number">01 <span>First simulation</span></div><div className="game-card-content"><p className="eyebrow">Strategic interaction</p><h2>Prisoner's Dilemma</h2><p>Explore how individual incentives can produce an outcome that is worse for both players.</p><button className="run-button game-start-button" type="button" onClick={() => setGameTheoryView('prisoners-dilemma')}>Start Simulation</button></div><div className="game-card-mark" aria-hidden="true">P<br />D</div></article>
+      </section> : <section className="game-theory-page" aria-labelledby="prisoners-dilemma-title"><button className="game-back-button" type="button" onClick={() => setGameTheoryView('landing')}>← Back to Game Theory Lab</button><div className="game-theory-heading"><p className="eyebrow">Game Theory Lab · First simulation</p><h1 id="prisoners-dilemma-title">Prisoner's Dilemma</h1><p className="subtitle">Choose whether each player remains silent or confesses, then explore the payoffs and Nash equilibrium.</p></div><PrisonersDilemma /></section>}
+    </>}
   </main>
 }
 
